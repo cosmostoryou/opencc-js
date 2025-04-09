@@ -1,0 +1,166 @@
+<!-- 載入 OpenCC 最新完整版 -->
+<script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+
+<style>
+  #cc-toggle-container {
+    position: fixed !important;
+    top: 70% !important;
+    right: 50px !important;
+    transform: translateY(-50%) !important;
+    z-index: 2147483647 !important;
+    display: block !important;
+    visibility: visible !important;
+    transition: right 0.3s ease !important;
+    width: 40px !important;
+    height: 10px !important;
+  }
+  
+  #cc-toggle {
+    background: rgba(0, 0, 0, 0.65) !important;
+    color: rgba(255, 255, 255, 0.9) !important;
+    border: none !important;
+    border-radius: 20px 0 0 20px !important;
+    padding: 8px 30px!important;
+    font-size: 17px !important;
+    cursor: pointer !important;
+    width: 100% !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2) !important;
+    text-align: center !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    transform: translateX(calc(100% - 40px)) !important;
+    transition: transform 0.3s ease, background 0.2s ease !important;
+  }
+  
+  #cc-toggle:hover {
+    transform: translateX(0) !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+  }
+</style>
+
+<script>
+(function () {
+  let isSimplified = false;
+  let toCN, toTW;
+  let lastPath = location.pathname;
+  
+  // 创建并显示按钮的函数
+  function createAndShowButton() {
+    console.log('尝试创建繁简转换按钮');
+    
+    // 检查是否已存在容器和按钮
+    if (document.getElementById('cc-toggle-container')) {
+      console.log('按钮已存在，确保其可见');
+      ensureButtonVisible();
+      return;
+    }
+    
+    // 创建容器
+    let container = document.createElement('div');
+    container.id = 'cc-toggle-container';
+    
+    // 创建按钮
+    let btn = document.createElement('button');
+    btn.id = 'cc-toggle';
+    btn.textContent = isSimplified ? '繁體/简体' : '简体/繁體';
+    
+    // 添加到DOM
+    container.appendChild(btn);
+    document.body.appendChild(container);
+    
+    // 添加点击事件
+    btn.onclick = async () => {
+      console.log('按钮被点击');
+      isSimplified = !isSimplified;
+      localStorage.setItem('langPref', isSimplified ? 'cn' : 'tw');
+      await convertPage(isSimplified);
+      btn.textContent = isSimplified ? '繁體/简体' : '简体/繁體';
+    };
+    
+    console.log('按钮创建完成');
+    ensureButtonVisible();
+  }
+  
+  // 确保按钮可见
+  function ensureButtonVisible() {
+    let container = document.getElementById('cc-toggle-container');
+    let btn = document.getElementById('cc-toggle');
+    if (!container || !btn) return;
+    
+    // 强制设置显示属性
+    container.style.display = 'block';
+    container.style.visibility = 'visible';
+    container.style.zIndex = '2147483647';
+    
+    btn.style.display = 'flex';
+    btn.style.visibility = 'visible';
+    console.log('已应用强制显示样式');
+  }
+
+  async function initOpenCC() {
+    toCN = await OpenCC.Converter({ from: 'twp', to: 'cn' });
+    toTW = await OpenCC.Converter({ from: 'cn', to: 'twp' });
+    console.log('OpenCC 初始化完成');
+  }
+
+  async function convertPage(toSimplified = true) {
+    const main = document.querySelector('main') || document.body;
+    const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, null, false);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      const text = node.nodeValue;
+      if (!text.trim()) continue;
+      try {
+        node.nodeValue = toSimplified ? await toCN(text) : await toTW(text);
+      } catch (e) {
+        console.warn('轉換錯誤：', e);
+      }
+    }
+  }
+
+  async function applyLanguageFromPref() {
+    const pref = localStorage.getItem('langPref') || 'tw';
+    isSimplified = (pref === 'cn');
+    if (isSimplified) {
+      await convertPage(true);
+    }
+    createAndShowButton();
+  }
+
+  function monitorSPAChange() {
+    setInterval(async () => {
+      const currentPath = location.pathname;
+      if (currentPath !== lastPath) {
+        lastPath = currentPath;
+        console.log('📦 偵測到頁面切換，自動套用語言與按鈕');
+        setTimeout(() => applyLanguageFromPref(), 800);
+      }
+    }, 1000);
+  }
+
+  async function initialize() {
+    console.log('开始初始化繁简转换功能');
+    try {
+      await initOpenCC();
+      await applyLanguageFromPref();
+      monitorSPAChange();
+    } catch (e) {
+      console.error('初始化出错:', e);
+    }
+  }
+
+  // 尝试多种方式确保代码执行
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initialize);
+  } else {
+    initialize();
+  }
+  
+  // 额外安全措施，确保按钮最终会显示
+  setTimeout(createAndShowButton, 1000);
+  setTimeout(createAndShowButton, 2000);
+})();
+</script>
